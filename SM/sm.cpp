@@ -17,7 +17,7 @@ int main()
 
 	for (auto iter : dists)
 	{
-		if (iter.first.first < 2)
+		if (iter.first.first < 2)  //just check some distance 
 		cout << "(" << iter.first.first << "," << iter.first.second << ")" << " " << iter.second << endl;
 	}
 
