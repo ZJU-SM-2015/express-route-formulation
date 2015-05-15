@@ -64,6 +64,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="city.h" />
     <ClInclude Include="method.h" />
     <ClInclude Include="sm.h" />
   </ItemGroup>
