@@ -1,5 +1,5 @@
 #include "sm.h"
-#include "city.h"
+#include "graph.h"
 #include <fstream>
 
 int main()
@@ -8,7 +8,7 @@ int main()
 
 	Graph graph(in,500);
 
-	graph.set_primer(200);
+	graph.set_primer(220);
 
 	system("pause");
 }

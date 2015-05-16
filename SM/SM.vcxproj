@@ -64,11 +64,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="city.h" />
+    <ClInclude Include="graph.h" />
     <ClInclude Include="sm.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="city.cpp" />
+    <ClCompile Include="graph.cpp" />
     <ClCompile Include="sm.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
