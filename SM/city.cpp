@@ -1,47 +1,43 @@
 #include "city.h"
 
-#define M_PI 3.14159265358979323846
-const float R = 6371; //radius of the Earth(km)
-
 int City::get_id()
 {
 	return id;
 }
 
-int City::get_weight()
+float City::get_weight()
 {
 	return weight;
 }
 
-void City::set_prime()
-{
-	prime = true;
-}
-
-bool City::is_prime()
-{
-	return prime;
-}
-
-pair<float, float> City::get_coor()
-{
-	return coor;
-}
-
-Graph::Graph(ifstream file)
+Graph::Graph(ifstream& file,float prime_weight)
 {
 	vector<pair<float, float>> vertexs;
-	float lat, lon;
-	int i = 0;
-	float weight;
-	while (file >> lat >> lon >> weight)
+	int i = 0;						//id
+	string name;					//city name
+	float lat, lon;					//latitude & longitude
+	float weight;					//weight = GDP * population
+	bool prime;						//whether it is a prime city
+	int flag = file.is_open();
+	string line;
+	while (getline(file,line))
 	{
+		stringstream ss;
+		ss << line;
+		ss >> name >> lat >> lon >> weight;
 		pair<float, float> v(lat, lon);
 		vertexs.push_back(v);
-		City city(i, v, weight);
-		citys.push_back(city);
-	}
+		if (weight > prime_weight)
+			prime = true;
+		else
+			prime = false;
+		City c(i,name, v, weight,prime);
+		city.push_back(c);
 
+		i++;
+	}
+	//construct distances set
+	//dists[{i,j}] means distance between city with id i and city with id j
 	for (unsigned i = 0; i < vertexs.size(); ++i)
 	{
 		for (unsigned j = 0; j < vertexs.size(); ++j)
@@ -52,20 +48,20 @@ Graph::Graph(ifstream file)
 	}
 }
 
-double Graph::dist(const pair<float, float>& v1, const pair<float, float>& v2)
+float Graph::dist(const pair<float, float>& v1, const pair<float, float>& v2)
 {
 	double lon1 = v1.second* M_PI / 180;
 	double lon2 = v2.second* M_PI / 180;
 	double lat1 = v1.first* M_PI / 180;
 	double lat2 = v2.first* M_PI / 180;
-	double d = R * acos(sin(lat1)*sin(lat2) + cos(lat1)*cos(lat2)*cos(lon2 - lon1));
+	float d = R * acos(sin(lat1)*sin(lat2) + cos(lat1)*cos(lat2)*cos(lon2 - lon1));
 	return d;
 }
 
 //choose the city with less latitude
 bool less_lat(const City& c1, const City& c2)
 {
-	return c1.coor.first < c2.coor.first;
+	return c1.coor.first <= c2.coor.first;
 }
 
 float cross_product(pair<float, float> v1, pair<float, float> v2)
@@ -73,87 +69,130 @@ float cross_product(pair<float, float> v1, pair<float, float> v2)
 	return v1.first*v2.second - v1.second*v2.first;
 }
 
-City Graph::closest_primer(const City& c)
+int Graph::closest_primer(int target)
 {
-	float min_dist = 0xffff;
-	City closest_primer;
-	for (auto iter : citys)
+	float min_dist = INF;
+	int cp_id;
+	for (unsigned i = 0; i < city.size();++i)
 	{
-		if (iter.is_prime() && dist(iter.get_coor(), c.get_coor()) < min_dist )
+		if (city[i].prime==true && dists[{i,target}] < min_dist )
 		{
-			closest_primer = iter;
-			min_dist = dist(iter.get_coor(), c.get_coor());
+			cp_id = i;
+			min_dist = dists[{i, target}];
 		}
 	}
-	return closest_primer;
+	return cp_id;
 }
 
-void Graph::set_primer_between(const City& c, const City& primer, float prime_radius)
+void Graph::set_primer_between(int id, int primer_id, float prime_radius)
 {
-	float min_dist_to_prime = 0xffff;
+	float min_dist_to_prime = INF;
 	int new_primer_id;
-	for (auto iter : citys)
+	for (unsigned i = 0; i < city.size(); ++i)
 	{
-		if (dist(iter.get_coor(), c.get_coor()) < prime_radius)
+		if (dists[{i,id}] < prime_radius && city[i].prime == false)
 		{
-			if (dist(iter.get_coor(), primer.get_coor()) < min_dist_to_prime)
+			if (dists[{i,primer_id}] < min_dist_to_prime)
 			{
-				min_dist_to_prime = dist(iter.get_coor(), primer.get_coor());
-				new_primer_id = iter.get_id();
+				min_dist_to_prime = dists[{i, primer_id}];
+				new_primer_id = i;
 			}
 		}
 	}
+	if (min_dist_to_prime == INF) //test
+	{
+		cout << "no appropriate city is found for" << city[id].name << "and" << city[primer_id].name << endl;
+		return;
+	}
 
-	citys[new_primer_id].set_prime();
+	city[new_primer_id].prime = true;
+	cout << "new primer" << city[new_primer_id].name << endl; //test
 
 }
 
-void Graph::set_primer(float prime_weight,float prime_radius)
+void Graph::set_primer(float prime_radius)
 {
-	for (auto iter : citys)
+	for (auto iter : city)
 	{
-		if (iter.get_weight() > prime_weight)
-			iter.set_prime();
+		if (iter.prime == true)
+		{
+			cout << iter.name << endl; //test
+		}
+		else
+			iter.prime = false;
+	}
+	cout << "******The cities above are first group of primers******" << endl; //test
+
+	auto start = min_element(city.begin(), city.end(), less_lat);
+	
+	//record that whether the city has been selected
+	vector<bool> selected;
+	for (unsigned i = 0; i < city.size(); ++i)
+	{
+		selected.push_back(false);
 	}
 
-	auto start = *min_element(citys.begin(), citys.end(), less_lat); // a method from <algorithm>
-
-	vector<bool> selected;
-	for (unsigned i = 0; i < citys.size(); ++i)
-		selected[i] = false;
-
-	auto select = start;
-	selected[start.get_id()] = true;
+	unsigned iter = start->id;
+	selected[iter] = true;
 
 	while (1)
 	{
-		City closest_p = closest_primer(select);
-		//if the distance between it and the cloest primer is greater out of prime_radius
-		if (dist(closest_p.get_coor(), select.get_coor()) > prime_radius) 
+		if (count(selected.begin(), selected.end(), true) == 57)
 		{
-			set_primer_between(closest_p, select, prime_radius);
+			break;
+		}
+
+		int cp_id = closest_primer(iter);
+		//if the distance between it and the cloest primer is greater than prime_radius, set a primer between them
+		if (dists[{iter, cp_id }] > prime_radius)
+		{
+			set_primer_between(iter, cp_id, prime_radius);
 		}
 
 		//closure iteration
-		float leftest = 0xffff;
-		City leftest_city;
-		
-		for (unsigned i = 0; i < citys.size() && (selected[i]==false); ++i)
+		int leftest_id;
+		for (unsigned i = 0; i < selected.size(); ++i)
 		{
-			float ret = cross_product(select.get_coor(), citys[i].get_coor());
-			if (ret < leftest)
+			if (selected[i] == false)
 			{
-				leftest = ret;
-				leftest_city = citys[i];
+				leftest_id = i;
+				break;
 			}
 		}
-		if (leftest == 0xffff)
-			break; //break if no leftest city any more
-		selected[leftest_city.get_id()] = true;
 
-		select = leftest_city;
+		for (unsigned i = 0; i < city.size(); ++i)
+		{
+			if (city[i].prime == true)
+				continue;
+			if (selected[i] == false)
+			{
+				pair<float, float> leftest_coor = city[leftest_id].coor;
+				pair<float, float> this_coor = city[i].coor;
+				pair<float, float> iter_coor = city[iter].coor;
+				pair<float, float> leftest2iter = { leftest_coor.second - iter_coor.second, leftest_coor.first - iter_coor.first };
+				pair<float, float> this2iter = { this_coor.second - iter_coor.second, this_coor.first - iter_coor.first };
+				float ret = cross_product(this2iter, leftest2iter);
+				if (ret < 0)
+				{
+					leftest_id = i;
+					//cout << city[i].name << endl;
+				}
+			}
+		}
 
+		selected[leftest_id] = true;
+		iter = leftest_id;
+		//cout << "next one :"<< city[iter].name << endl; //test
 	}
 
 
+}
+
+void Graph::print_primers()
+{
+	for (auto iter : city)
+	{
+		if (iter.prime == true)
+			cout << iter.name << endl;
+	}
 }
