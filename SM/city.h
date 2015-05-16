@@ -1,26 +1,27 @@
 #pragma once
 #include "sm.h"
 #include <fstream>
+#include <utility>
+#include <sstream>
+
+const double M_PI = 3.141592653589;
+const float R = 6371; //radius of the Earth(km)
+const float INF = 0xffff;
 
 class City{
 	friend bool less_lat(const City&, const City&);
+	friend class Graph;
 
 public:
-	City() {}
-	City(int _id, pair<float, float> _coor, float _weight)
-		:id(_id), coor(_coor), weight(_weight) {
-		prime = false;
-	}
-	~City();
-	pair<float, float> get_coor();
-	const pair<float, float> get_coor() const;
+	City(int _id, string _name, pair<float, float> _coor, float _weight,bool _prime)
+		:id(_id), name(_name), coor(_coor), weight(_weight),prime(_prime) {}
+	~City() {}
 	int get_id();
-	int get_weight();
-	bool is_prime();
-	void set_prime();
+	float get_weight();
 
 private:
 	int id;
+	string name;
 	pair<float, float> coor;
 	float weight;
 	bool prime;
@@ -29,16 +30,19 @@ private:
 
 class Graph{
 public:
-	Graph(ifstream);
-	~Graph();
-	double dist(const pair<float, float>& v1, const pair<float, float>& v2);
-	City closest_primer(const City&);
-	void set_primer_between(const City&, const City&, float prime_radius);
-	void set_primer(float prime_weight, float prime_radius);
+	Graph(ifstream&,float prime_weight);
+	~Graph() {}
+	float dist(const pair<float, float>& v1, const pair<float, float>& v2);
+	int closest_primer(int target);
+	
+	void set_primer_between(int id, int primer_id, float prime_radius);
+	void set_primer(float prime_radius);
+
+	void print_primers();
 
 private:
 
-	vector<City> citys;
+	vector<City> city;
 	map<pair<int, int>, double> dists; //distance
 
 };

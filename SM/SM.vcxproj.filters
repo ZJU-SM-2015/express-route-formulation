@@ -18,9 +18,6 @@
     <ClInclude Include="sm.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="method.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="city.h">
       <Filter>头文件</Filter>
     </ClInclude>
@@ -29,7 +26,7 @@
     <ClCompile Include="sm.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="method.cpp">
+    <ClCompile Include="city.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
