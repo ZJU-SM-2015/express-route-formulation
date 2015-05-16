@@ -1,14 +1,25 @@
 #include "sm.h"
-#include "city.h"
+#include "method.h"
 #include <fstream>
 
 int main()
 {
-	ifstream in("data2.txt");
+	ifstream in("lon&lat.txt");
+	float lat, lon;
+	vector<pair<float, float>> vertexs;
+	while (in >> lat >> lon)
+	{
+		pair<float, float> v(lon, lat);
+		vertexs.push_back(v);
+	}
+	map<pair<int, int>, float> dists;
+	get_dist(dists, vertexs);
 
-	Graph graph(in,500);
-
-	graph.set_primer(200);
+	for (auto iter : dists)
+	{
+		if (iter.first.first < 2)  //just check some distance 
+		cout << "(" << iter.first.first << "," << iter.first.second << ")" << " " << iter.second << endl;
+	}
 
 	system("pause");
 }
