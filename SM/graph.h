@@ -1,8 +1,6 @@
 #pragma once
 #include "sm.h"
-#include <fstream>
-#include <utility>
-#include <sstream>
+
 
 const double M_PI = 3.141592653589;
 const float R = 6371; //radius of the Earth(km)
@@ -39,10 +37,13 @@ public:
 	void set_primer(float prime_radius);
 
 	void print_primers();
+	void print_express();
+
+	void route(int, int);
+	float cost();
 
 private:
-
 	vector<City> city;
-	map<pair<int, int>, double> dists; //distance
-
+	map<pair<int, int>, float> dists; //distance
+	map<pair<int, int>, float> express; //express from one to another
 };

@@ -1,0 +1,10 @@
+[10144:3392:0517/000435:VERBOSE1:crash_service_main.cc(68)] Session start. cmdline is [--reporter-url=https://ticinocrashreporter.azurewebsites.net/crash --application-name=Ticino --v=1]
+[10144:3392:0517/000435:VERBOSE1:crash_service.cc(133)] window handle is 0018083A
+[10144:3392:0517/000435:VERBOSE1:crash_service.cc(279)] pipe name is \\.\pipe\Ticino Crash Service
+dumps at 
+[10144:3392:0517/000435:VERBOSE1:crash_service.cc(283)] checkpoint is crash_checkpoint.txt
+server is https://ticinocrashreporter.azurewebsites.net/crash
+maximum 128 reports/day
+reporter is atom-shell-crash-service
+[10144:3392:0517/000435:VERBOSE1:crash_service_main.cc(83)] Ready to process crash requests
+[10144:7680:0517/000435:VERBOSE1:crash_service.cc(313)] client start. pid = 10664

@@ -20,6 +20,7 @@ Graph::Graph(ifstream& file,float prime_weight)
 	bool prime;						//whether it is a prime city
 	int flag = file.is_open();
 	string line;
+	int hz, nj;
 	while (getline(file,line))
 	{
 		stringstream ss;
@@ -34,6 +35,12 @@ Graph::Graph(ifstream& file,float prime_weight)
 		City c(i,name, v, weight,prime);
 		city.push_back(c);
 
+		//find hangzhou and nanjing
+		if (name == "杭州市")
+			hz = i;
+		if (name == "南京市")
+			nj = i;
+
 		i++;
 	}
 	//construct distances set
@@ -44,6 +51,19 @@ Graph::Graph(ifstream& file,float prime_weight)
 		{
 			pair<int, int> edge(i, j);
 			dists[edge] = dist(vertexs[i], vertexs[j]);
+		}
+	}
+	
+	express[{hz, nj}] == 1; //the amount of express from hz to nj is one car
+	for (unsigned i = 0; i < vertexs.size(); ++i)
+	{
+		for (unsigned j = 0; j < vertexs.size(); ++j)
+		{
+			if (i == j) continue;
+			pair<int, int> edge1(i, j);
+			pair<int, int> edge2(j, i);
+			express[edge1] = city[i].weight * city[j].weight / (city[hz].weight * city[nj].weight);
+			express[edge2] = city[i].weight * city[j].weight / (city[hz].weight * city[nj].weight);
 		}
 	}
 }
@@ -106,7 +126,7 @@ void Graph::set_primer_between(int id, int primer_id, float prime_radius)
 	}
 
 	city[new_primer_id].prime = true;
-	cout << "new primer" << city[new_primer_id].name << endl; //test
+	//cout << "new primer" << city[new_primer_id].name << endl; //test
 
 }
 
@@ -116,12 +136,12 @@ void Graph::set_primer(float prime_radius)
 	{
 		if (iter.prime == true)
 		{
-			cout << iter.name << endl; //test
+			//cout << iter.name << endl; //test
 		}
 		else
 			iter.prime = false;
 	}
-	cout << "******The cities above are first group of primers******" << endl; //test
+	//cout << "******The cities above are first group of primers******" << endl; //test
 
 	auto start = min_element(city.begin(), city.end(), less_lat);
 	
@@ -195,4 +215,192 @@ void Graph::print_primers()
 		if (iter.prime == true)
 			cout << iter.name << endl;
 	}
+}
+
+void Graph::print_express()
+{
+	for (auto iter : express)
+	{
+		string c1 = city[iter.first.first].name;
+		string c2 = city[iter.first.second].name;
+		if (c1 == "杭州市") //test hangzhou
+			cout << c1 << "--" << c2 << ":" << iter.second << endl;
+	}
+}
+
+void Graph::route(int c1, int c2)
+{
+	
+}
+
+float Graph::cost()
+{
+	map<pair<int, int>, float> limit;		//time limit
+	for (auto iter : dists)
+	{
+		int from = iter.first.first;
+		int to = iter.first.second;
+		float dist = iter.second;
+		if (dist <= 400)
+			limit[{from, to}] = 12;
+		else if (dist <= 1200)
+			limit[{from, to}] = 36;
+		else if (dist <= 3000)
+			limit[{from, to}] = 60;
+		else
+			limit[{from, to}] = 84;
+	}
+
+	vector<int> sub2pri;				//subprime city id to its closest prime city id
+	for (unsigned i = 0; i < city.size(); ++i)
+	{
+		sub2pri.push_back(closest_primer(i));
+	}
+
+	map<int,set<int>> pri2sub;			//a prime city to its subprime cities
+	for (unsigned i = 0; i < city.size(); ++i)
+	{
+		if (city[i].prime == true)
+		{
+			set<int> subs;
+			for (unsigned j = 0; j < sub2pri.size(); ++j)
+			{
+				if (sub2pri[j] == i)
+					subs.insert(j);
+			}
+			pri2sub.insert({ i, subs });
+		}
+	}
+
+	map<int, float> assem_time;		//time when finish assembling express from its 
+
+	for (auto iter : pri2sub)
+	{
+		int pri = iter.first;
+		set<int> subs = iter.second;
+		float max_dist = 0;
+		for (auto sub : subs)
+		{
+			if (dists[{sub, pri}] > max_dist)
+				max_dist = dists[{sub, pri}];
+		}
+
+		assem_time.insert({ pri, max_dist / (70*1.0) });
+	}
+	map<pair<int, int>,float> ass_sub2pri;
+	for (unsigned i = 0; i < sub2pri.size(); ++i)
+	{
+		float sum = 0;
+		for (unsigned j = 0; j < city.size(); ++j)
+		{
+			sum += express[{i, j}];
+		}
+		ass_sub2pri[{i, sub2pri[i]}] = sum ;
+	}
+
+	map<pair<int, int>, float> truck_sub2pri;
+	for (unsigned i = 0; i < sub2pri.size(); ++i)
+	{
+		float sum = 0;
+		for (unsigned j = 0; j < city.size(); ++j)
+		{
+			sum += express[{i, j}];
+		}
+		truck_sub2pri[{i, sub2pri[i]}] = sum;
+	}
+
+	map<pair<int, int>, float> time_cost;
+	int cnt = 0;
+	for (auto iter : express)
+	{
+		int from = iter.first.first;
+		int to = iter.first.second;
+		float exp = iter.second;
+
+		int pri_of_from = sub2pri[from];
+		int pri_of_to = sub2pri[to];
+		float time = 0;
+		float t1, t2, t3, t4;
+		if (assem_time[pri_of_from] == 0)
+			t1 = 0;
+		else
+			t1 = assem_time[pri_of_from] + 2; //if not in 19:00~24:00 or 0:00~7:00 ?
+		t2 = dists[{pri_of_from, pri_of_to}] / 70;
+		time += t1 + t2;
+		int arrive_pri_of_to = (int)(19 + time + 0.5) % 24;
+		if (arrive_pri_of_to >= 19 && arrive_pri_of_to <= 24 || arrive_pri_of_to >= 0 && arrive_pri_of_to <= 5)
+			t3 = 2;
+		else
+			t3 = 2 + 12;
+
+		t4 = dists[{pri_of_to,to}] / 70;
+		time += t3 + t4;
+		time_cost[{from, to}] = time;
+		ofstream out("out.txt");
+		if (time > limit[{from, to}])
+		{
+			std::cout << "Out of time limit : from " << city[from].name << " to " << city[to].name << endl;
+			std::cout << "Time : " << time << " Limit : " << limit[{from, to}] << endl;
+			std::cout << "Route : " << city[from].name << "->" << city[sub2pri[from]].name << "->" << city[sub2pri[to]].name << "->" << city[to].name << endl;
+			std::cout << t1 << " " << t2 << " " << t3 << " " << t4 << endl;
+			std::cout << endl;
+			cnt++;
+		}
+		
+	}
+	cout << cnt << endl;
+	map<pair<int, int>, float> exp_pri2pri; //express from one primer to another
+	vector<int> sum_of_send;
+	for (auto iter : express)
+		exp_pri2pri.insert({ iter.first, 0 });
+	for (auto iter : express)
+	{
+		int from = iter.first.first;
+		int to = iter.first.second;
+		float exp = iter.second;
+
+		int pri_of_from = sub2pri[from];
+		int pri_of_to = sub2pri[to];
+		pair<int, int> pri2pri(pri_of_from, pri_of_to);
+		exp_pri2pri[pri2pri] += exp;
+	}
+
+	map<pair<int, int>, int> truck_pri2pri; //truck from one primer to another
+	for (auto iter : exp_pri2pri)
+	{
+		truck_pri2pri.insert({ iter.first, int(iter.second + 1) });
+	}
+
+	double cost = 0;
+	for (unsigned i = 0; i < sub2pri.size();++i)
+	{
+		float sum = 0;
+		for (unsigned j = 0; j < city.size(); ++j)
+		{
+			sum += express[{i, j}];
+		}
+		int truck2pri = int(sum + 1);
+		cost += truck2pri * dists[{i, sub2pri[i]}];
+	}
+
+	for (auto iter : truck_pri2pri)
+	{
+		int from = iter.first.first;
+		int to = iter.first.second;
+		int truck = iter.second;
+		cost += truck * dists[{from, to}];
+	}
+
+	for (unsigned i = 0; i < sub2pri.size(); ++i)
+	{
+		float exp_pri2sub = 0;
+		for (unsigned j = 0; j < city.size(); ++j)
+		{
+			exp_pri2sub += express[{j, i}];
+		}
+		int truck_pri2sub = int(exp_pri2sub + 1);
+		cost += truck_pri2sub * dists[{i, sub2pri[i]}];
+	}
+
+	return cost;
 }
