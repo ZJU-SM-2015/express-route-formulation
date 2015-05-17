@@ -1,5 +1,10 @@
 #include "graph.h"
 
+bool operator != (const TP& tp1, const TP& tp2)
+{
+	return tp1.place != tp2.place || tp1.time != tp2.time;
+}
+
 int City::get_id()
 {
 	return id;
@@ -234,32 +239,14 @@ bool less_dist(pair<int, float> p1,pair<int, float> p2)
 }
 
 
-struct Box{
-	set<int> subs;
-	float contain;
-
-	Box() { contain = 0; }
-};
-
-struct Route{
-	int begin;
-	int desti;
-	int truck;
-	float arrivetime;
-	Box box;
-	Route(int _begin, int _desti, int _truck, float _arrivetime, Box _box)
-		:begin(_begin), desti(_desti), truck(_truck), arrivetime(_arrivetime), box(_box) {}
-	friend bool operator< (const Route& r1, const Route&r2);
-};
 
 
 bool operator< (const Route& r1, const Route&r2){
 	return r1.arrivetime < r2.arrivetime;
 }
 
-float Graph::cost()
+void Graph::get_limit(map<pair<int, int>, float>& limit)
 {
-	map<pair<int, int>, float> limit;		//time limit
 	for (auto iter : dists)
 	{
 		int from = iter.first.first;
@@ -274,14 +261,10 @@ float Graph::cost()
 		else
 			limit[{from, to}] = 84;
 	}
+}
 
-	vector<int> sub2pri;				//subprime city id to its closest prime city id
-	for (unsigned i = 0; i < city.size(); ++i)
-	{
-		sub2pri.push_back(closest_primer(i));
-	}
-
-	map<int,set<int>> pri2sub;			//a prime city to its subprime cities
+void Graph::get_pri2sub(map<int, set<int>>& pri2sub, const vector<int>& sub2pri)
+{
 	for (unsigned i = 0; i < city.size(); ++i)
 	{
 		if (city[i].prime == true)
@@ -295,34 +278,25 @@ float Graph::cost()
 			pri2sub.insert({ i, subs });
 		}
 	}
-
-	map<int, float> assem_time;		//time when finish assembling express from its 
-
-
-
-	for (auto iter : pri2sub)
+}
+void Graph::get_sub2pri(vector<int>& sub2pri)
+{
+	for (unsigned i = 0; i < city.size(); ++i)
 	{
-		int pri = iter.first;
-		set<int> subs = iter.second;
-		float max_dist = 0;
-		for (auto sub : subs)
-		{
-			if (dists[{sub, pri}] > max_dist)
-				max_dist = dists[{sub, pri}];
-		}
+		sub2pri.push_back(closest_primer(i));
+	}
+}
 
-		assem_time.insert({ pri, max_dist / (70*1.0) });
-	}
-	map<pair<int, int>,float> ass_sub2pri;
-	for (unsigned i = 0; i < sub2pri.size(); ++i)
-	{
-		float sum = 0;
-		for (unsigned j = 0; j < city.size(); ++j)
-		{
-			sum += express[{i, j}];
-		}
-		ass_sub2pri[{i, sub2pri[i]}] = sum ;
-	}
+float Graph::cost(int &error)
+{
+	map<pair<int, int>, float> limit;		//time limit
+	get_limit(limit);
+
+	vector<int> sub2pri;				//subprime city id to its closest prime city id
+	get_sub2pri(sub2pri);
+
+	map<int,set<int>> pri2sub;			//a prime city to its subprime cities
+	get_pri2sub(pri2sub, sub2pri);
 
 	map<pair<int, int>, float> truck_sub2pri;
 	for (unsigned i = 0; i < sub2pri.size(); ++i)
@@ -338,7 +312,7 @@ float Graph::cost()
 	map<int, vector<Route>> routes_of_pri;
 	map<pair<int, int>, float> time; // time for express from subprimer to primer
 	map<pair<int, int>, vector<float>> time_vec;
-	
+	map<pair<int, int>, int> truck_between;
 	for (auto iter:pri2sub)
 	{
 		int pri = iter.first;
@@ -393,25 +367,40 @@ float Graph::cost()
 			int pri = iter.first.second;
 			float exp = iter.second;
 			exp_2pri[pri] += exp;
+
+			//calculate cost
 		}
 		//start
 		float t = 0; //record time
+		
+		for (unsigned i = 0; i < city.size() && city[i].prime == true; ++i)
+		{
+			truck_between.insert({ { pri, i }, 0 });
+		}
 
 		for (auto iter : dists_of_sub)
 		{
 			t = (iter / (70 * 1.0));
 			int sub = sub_dist[iter];
+			truck_between[{sub, pri}] = int(express[{sub,pri}]+1);
 
+			for (unsigned i = 0; i < city.size(); ++i)
+			{
+				if (t >= 0.0001)
+				{
+					TP tp(t, city[pri].name);
+					timetable[{sub, i}].push_back(tp);
+				}
+			}
 			for (unsigned i = 0; i < city.size(); ++i)//an iteration through the boxs
 			{
 				if (city[i].prime == true)
 				{
-					for (unsigned j = 0; j < boxs[i].subs.size(); ++j)
+					for (auto j : boxs[i].subs)
 					{
 						time[{j, i}] = t;
-						time_vec[{j, i}].push_back(t);
 					}
-
+					
 					boxs[i].contain += exp_sub2pri[{sub, i}];
 					boxs[i].subs.insert(sub);
 					if (boxs[i].contain >= 1 || exp_2pri[i] <= 1)	//       //if the express to another primer is sum up to over 1 truck
@@ -419,11 +408,47 @@ float Graph::cost()
 						int truck = int(boxs[i].contain + 1);
 						for (auto j : boxs[i].subs)
 						{
-							time[{j, i}] += dists[{j, i}] / (70 * 1.0) + 2; //!!!consider pri2pri???
-							time_vec[{j, i}].push_back(dists[{j, i}] / (70 * 1.0));
-							time_vec[{j, i}].push_back(2);
-							Route route(j, i, truck, time[{j, i}], boxs[i]);
-							routes.push_back(route);
+							if (j == sub2pri[j])
+							{
+								time[{j, i}] += dists[{sub2pri[j], i}] / (70 * 1.0); //!!!consider pri2pri
+								if (truck_between.find({ sub2pri[j], i })==truck_between.end())
+									truck_between[{sub2pri[j], i}] = truck;
+
+								for (auto iter : pri2sub[i])
+								{
+									TP tp(time[{j, i}], city[i].name);
+									timetable[{j, iter}].push_back(tp);
+								}
+
+								time_vec[{j, i}].push_back(dists[{j, i}] / (70 * 1.0));
+							}
+							else
+							{
+								time[{j, i}] += dists[{sub2pri[j], i}] / (70 * 1.0) + 2; //!!!consider pri2pri
+								if (truck_between.find({ sub2pri[j], i }) == truck_between.end())
+									truck_between[{sub2pri[j], i}] = truck;
+
+								for (auto iter : pri2sub[i])
+								{
+									TP tp(time[{j, i}], city[i].name);
+									timetable[{j, iter}].push_back(tp);
+								}
+
+								time_vec[{j, i}].push_back(dists[{j, i}] / (70 * 1.0));
+								time_vec[{j, i}].push_back(2);
+							}
+							
+							if ((int(time[{j, i}] + 19) % 24 > 7) && (int(time[{j, i}] + 19) % 24 < 19))
+							{
+								float t = int(time[{j, i}] + 19) / 24 * 24 + 19;
+								Route route(j, i, truck, time[{j, i}], boxs[i]);
+								routes.push_back(route);
+							}
+							else
+							{
+								Route route(j, i, truck, time[{j, i}], boxs[i]);
+								routes.push_back(route);
+							}
 						}
 						exp_2pri[i] -= boxs[i].contain;
 						boxs[i].contain = 0;               // the trucks can go off now
@@ -433,13 +458,23 @@ float Graph::cost()
 			}
 		}
 		//clear the boxs
-		for (unsigned i = 0; i < boxs.size(); ++i)
+		//for (unsigned i = 0; i < boxs.size(); ++i)
+		for (auto iter:boxs)
 		{
-			int truck = int(boxs[i].contain + 1);
-
-			for (auto j : boxs[i].subs)
+			int truck = int(iter.second.contain + 1);
+			unsigned i = iter.first; //pri_of_to
+			for (auto j : iter.second.subs)
 			{
 				time[{j, i}] += dists[{j, i}] / (70 * 1.0) + 2;
+				if (truck_between.find({ sub2pri[j], i }) == truck_between.end())
+					truck_between[{sub2pri[j], i}] = truck;
+
+				for (auto iter : pri2sub[i])
+				{
+					TP tp(time[{j, i}], city[i].name);
+					timetable[{j, iter}].push_back(tp);
+				}
+
 				time_vec[{j, i}].push_back(dists[{j, i}] / (70 * 1.0));
 				time_vec[{j, i}].push_back(2);
 				Route route(j, i, truck, time[{j, i}], boxs[i]);
@@ -453,7 +488,6 @@ float Graph::cost()
 
 	}// an iteration ends
 
-
 	map<int, vector<Route>> routes_to_pri;
 	for (auto iter : routes_of_pri)
 	{
@@ -464,7 +498,7 @@ float Graph::cost()
 			routes_to_pri[desti].push_back(routes[i]);
 		}
 	}
-	map<pair<int, int>, float> distr;//distribution time from a primer to its subprimer
+
 	map<pair<int, int>, float> finish_time;
 	for (auto iter : routes_to_pri)
 	{
@@ -472,8 +506,13 @@ float Graph::cost()
 		int pri_of_to = iter.first;
 		vector<Route> routes = iter.second;
 		set<int> dest = pri2sub[pri_of_to];
-		sort(routes.begin(),routes.end());
+		sort(routes.begin(),routes.end()); //sort the routes
 		float cleartime = 0;
+
+		for (auto to:dest)
+		{
+			truck_between[{pri_of_to, to}] = 0;
+		}
 		for (unsigned i = 0; i < routes.size(); ++i)
 		{
 			Route r = routes[i];
@@ -487,19 +526,92 @@ float Graph::cost()
 					boxs[to].subs.insert(from);
 					if (to == pri_of_to)
 					{
-						finish_time[{from, to}] = r.arrivetime;
+						if (finish_time.find({from,to})==finish_time.end())
+							finish_time[{from, to}] = r.arrivetime;
+
+						//truck_between[{pri_of_to, to}] += truck; //
+						time_vec[{from, to}].push_back(0);
+						boxs[to].contain = 0;
+						boxs[to].subs.clear();
 					}
+					
 				}
 				if (boxs[to].contain >= 1)
 				{
 					set<int> set_of_from = boxs[to].subs;
 					for (auto from : set_of_from)
 					{
-						finish_time[{from, to}] = r.arrivetime + 2 + dists[{pri_of_to, to}] / 70;
+						if ( to == sub2pri[to])
+						{
+							if (finish_time.find({ from, to }) == finish_time.end())
+								finish_time[{from, to}] = r.arrivetime + dists[{pri_of_to, to}] / 70;
+							
+							time_vec[{from, to}].push_back(dists[{pri_of_to, to}] / 70);
+						}
+						else if (sub2pri[from] == sub2pri[to])
+						{
+							if (finish_time.find({ from, to }) == finish_time.end())
+								finish_time[{from, to}] = r.arrivetime + dists[{pri_of_to, to}] / 70;
+
+							time_vec[{from, to}].push_back(dists[{pri_of_to, to}] / 70);
+
+							TP tp(finish_time[{from, to}], city[to].name);
+							if (timetable[{from,to}].back() != tp)
+							timetable[{from, to}].push_back(tp);
+
+							int truck = int(boxs[to].contain + 1);
+							if (truck_between.find({ pri_of_to, to }) == truck_between.end())
+								truck_between[{pri_of_to, to}] = truck;
+						}
+						else
+						{
+							if (finish_time.find({ from, to }) == finish_time.end())
+								finish_time[{from, to}] = r.arrivetime + 2 + dists[{pri_of_to, to}] / 70;
+							time_vec[{from, to}].push_back(2);
+							time_vec[{from, to}].push_back(dists[{pri_of_to, to}] / 70);
+
+							TP tp(finish_time[{from, to}], city[to].name);
+							if (timetable[{from, to}].back() != tp)
+							timetable[{from, to}].push_back(tp);
+
+							int truck = int(boxs[to].contain + 1);
+							if (truck_between.find({ pri_of_to, to }) == truck_between.end())
+								truck_between[{pri_of_to, to}] = truck;
+						}
 					}
 					
 					boxs[to].contain = 0;
 					boxs[to].subs.clear();
+				}
+				else
+				{
+					//if the next arrive time will make some express from somewhere stored in the box already break the limit, it should be send out right now
+					for (auto from : boxs[to].subs)
+					{
+						if ((i < routes.size() - 1) && (limit[{from, to}] < (dists[{pri_of_to, to}] / 70 + routes[i + 1].arrivetime + 2)))
+						{
+							//go now
+							for (auto from : boxs[to].subs)
+							{
+								if (finish_time.find({ from, to }) == finish_time.end())
+									finish_time[{from, to}] = r.arrivetime + dists[{pri_of_to, to}] / 70 + 2;
+								time_vec[{from, to}].push_back(-1);
+								time_vec[{from, to}].push_back(r.arrivetime + dists[{pri_of_to, to}] / 70);
+								time_vec[{from, to}].push_back(2);
+
+								int truck = int(boxs[to].contain + 1);
+								if (truck_between.find({ pri_of_to, to }) == truck_between.end())
+									truck_between[{pri_of_to, to}] = truck;
+
+								TP tp(finish_time[{from, to}], city[to].name);
+								if (timetable[{from, to}].back() != tp)
+									timetable[{from, to}].push_back(tp);
+							}
+							boxs[to].contain = 0;
+							boxs[to].subs.clear();
+							break;
+						}
+					}
 				}
 			}
 			cleartime = r.arrivetime;
@@ -511,130 +623,84 @@ float Graph::cost()
 			set<int> set_of_from = boxs[to].subs;
 			for (auto from : set_of_from)
 			{
-				finish_time[{from, to}] = cleartime + 2 + dists[{pri_of_to, to}] / 70;
+				if (finish_time.find({ from, to }) == finish_time.end())
+					finish_time[{from, to}] = cleartime + 2 + dists[{pri_of_to, to}] / 70;
+
+				int truck = int(boxs[to].contain + 1);
+				if (truck_between.find({ pri_of_to, to }) == truck_between.end())
+					truck_between[{pri_of_to, to}] = truck;
+
+				TP tp(finish_time[{from, to}], city[to].name);
+				if (timetable[{from, to}].back() != tp)
+					timetable[{from, to}].push_back(tp);
 			}
 		}
 
 	}
 	int cnt = 0;
+	ofstream out("error.txt");
 	for (auto iter : finish_time)
 	{
 		int from = iter.first.first;
 		int to = iter.first.second;
+		if (from == to) continue;
 		float time = iter.second;
+
 		if (time > limit[{from, to}])
 		{
-			std::cout << "Out of time limit : from " << city[from].name << " to " << city[to].name << endl;
-			std::cout << "Time : " << time << " Limit : " << limit[{from, to}] << endl;
-			std::cout << "Route : " << city[from].name << "->" << city[sub2pri[from]].name << "->" << city[sub2pri[to]].name << "->" << city[to].name << endl;
+			out << "Out of time limit : from " << city[from].name << " to " << city[to].name << endl;
+			out << "Time : " << time << " Limit : " << limit[{from, to}] << endl;
+			out << "Route : " << city[from].name << "->" << city[sub2pri[from]].name << "->" << city[sub2pri[to]].name << "->" << city[to].name << endl;
 			for (auto t : time_vec[{from, sub2pri[from]}])
-				std::cout << t << endl;
-			std::cout << endl;
+				out << t << " | ";
+			out << endl;
+			out << endl;
 			cnt++;
 		}
 	}
-	cout << cnt << endl;
-	cout << finish_time.size() << endl;
-	map<pair<int, int>, float> exp_pri2pri; //express from one primer to another
-	vector<int> sum_of_send;
-	for (auto iter : express)
-	{
-		int from = iter.first.first;
-		int to = iter.first.second;
-		int pri_of_from = sub2pri[from];
-		int pri_of_to = sub2pri[to];
-		exp_pri2pri.insert({ {pri_of_from,pri_of_to}, 0 });
-	}
-		
-	for (auto iter : express)
-	{
-		int from = iter.first.first;
-		int to = iter.first.second;
-		float exp = iter.second;
+	error = cnt;
 
-		int pri_of_from = sub2pri[from];
-		int pri_of_to = sub2pri[to];
-		pair<int, int> pri2pri(pri_of_from, pri_of_to);
-		exp_pri2pri[pri2pri] += exp;
-	}
-
-	map<pair<int, int>, int> truck_pri2pri; //truck from one primer to another
-	for (auto iter : exp_pri2pri)
-	{
-		truck_pri2pri.insert({ iter.first, int(iter.second + 1) });
-	}
-
-	//map<pair<int, int>, float> time_cost;
-	//int cnt = 0;
-	//for (auto iter : express)
-	//{
-	//	int from = iter.first.first;
-	//	int to = iter.first.second;
-	//	float exp = iter.second;
-
-	//	int pri_of_from = sub2pri[from];
-	//	int pri_of_to = sub2pri[to];
-	//	float time = 0;
-	//	float t1, t2, t3, t4;
-	//	if (assem_time[pri_of_from] == 0)
-	//		t1 = 0;
-	//	else
-	//		t1 = assem_time[pri_of_from] + 2; //if not in 19:00~24:00 or 0:00~7:00 ?
-	//	t2 = dists[{pri_of_from, pri_of_to}] / 70;
-	//	time += t1 + t2;
-	//	int arrive_pri_of_to = (int)(19 + time + 0.5) % 24;
-	//	if (arrive_pri_of_to >= 19 && arrive_pri_of_to <= 24 || arrive_pri_of_to >= 0 && arrive_pri_of_to <= 5)
-	//		t3 = 2;
-	//	else
-	//		t3 = 2 + 12;
-
-	//	t4 = dists[{pri_of_to,to}] / 70;
-	//	time += t3 + t4;
-	//	time_cost[{from, to}] = time;
-	//	ofstream out("out.txt");
-	//	if (time > limit[{from, to}])
-	//	{
-	//		std::cout << "Out of time limit : from " << city[from].name << " to " << city[to].name << endl;
-	//		std::cout << "Time : " << time << " Limit : " << limit[{from, to}] << endl;
-	//		std::cout << "Route : " << city[from].name << "->" << city[sub2pri[from]].name << "->" << city[sub2pri[to]].name << "->" << city[to].name << endl;
-	//		std::cout << t1 << " " << t2 << " " << t3 << " " << t4 << endl;
-	//		std::cout << endl;
-	//		cnt++;
-	//	}
-	//	
-	//}
-	//cout << cnt << endl;
-
-	double cost = 0;
-	for (unsigned i = 0; i < sub2pri.size();++i)
-	{
-		float sum = 0;
-		for (unsigned j = 0; j < city.size(); ++j)
-		{
-			sum += express[{i, j}];
-		}
-		int truck2pri = int(sum + 1);
-		cost += truck2pri * dists[{i, sub2pri[i]}];
-	}
-
-	for (auto iter : truck_pri2pri)
+	float sum_cost = 0;
+	int count = 0;
+	for (auto iter : truck_between)
 	{
 		int from = iter.first.first;
 		int to = iter.first.second;
 		int truck = iter.second;
-		cost += truck * dists[{from, to}];
+		if (truck != 0)
+			count++;
+		sum_cost += dists[{from, to}] * truck;
 	}
 
-	for (unsigned i = 0; i < sub2pri.size(); ++i)
+	return sum_cost;
+}
+
+void Graph::print_timetable(ostream& os)
+{
+	if (timetable.size() == 0)
+		cout << "no table" << endl;
+
+	else
 	{
-		float exp_pri2sub = 0;
-		for (unsigned j = 0; j < city.size(); ++j)
+		for (auto iter : timetable)
 		{
-			exp_pri2sub += express[{j, i}];
+			int from = iter.first.first;
+			int to = iter.first.second;
+			if (from == to) continue;
+			os << city[from].name << " " << city[to].name << endl;
+			vector<TP> tps = iter.second;
+			for (auto iter2 : tps)
+			{
+				float time = iter2.time;
+				int hour = int(time);
+				int min = int((time - hour) * 60);
+				int sec = int(time * 3600 - hour * 3600 - min * 60);
+				int day = (19 + hour) / 24;
+				hour = (19 + hour) % 24;
+				os << "day" << day << " " << hour << ":" << min << ":" << sec << " " << iter2.place << endl;
+			}
+			os << endl;
 		}
-		int truck_pri2sub = int(exp_pri2sub + 1);
-		cost += truck_pri2sub * dists[{i, sub2pri[i]}];
+		
 	}
-
-	return cost;
 }

@@ -1,0 +1,10 @@
+Out of time limit : from 蚌埠市 to 平顶山市
+Time : 12.3266 Limit : 12
+Route : 蚌埠市->合肥市->郑州市->平顶山市
+1.68998 | 2 | 0 | 
+
+Out of time limit : from 平顶山市 to 蚌埠市
+Time : 12.3465 Limit : 12
+Route : 平顶山市->郑州市->合肥市->蚌埠市
+1.67008 | 2 | 0 | 
+

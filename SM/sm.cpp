@@ -4,20 +4,18 @@
 
 int main()
 {
-	ifstream in("data2.txt");
+	
+	ofstream out("output.txt");
 
-	Graph graph(in,500);
-
-	/*for (unsigned i = 70; i < 110; ++i)
+	for (float i = 100; i < 150; i = i + 1.0)
 	{
+		ifstream in("data2.txt");
+		Graph graph(in, 500);
 		graph.set_primer(i);
-		if (graph.cost()>0)
-			cout << i << " : " << graph.cost() << endl;	
-	}*/
-	float i = 400;
-	graph.set_primer(i);
-	cout << i << " : " << graph.cost() << endl;
-	//graph.print_express();
+		int error;
+		float cost = graph.cost(error);
+		out << i << "  " << cost << " " << error << endl;
+	}
 
-	system("pause");
+	//system("pause");
 }
