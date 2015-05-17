@@ -54,7 +54,7 @@ Graph::Graph(ifstream& file,float prime_weight)
 		}
 	}
 	
-	express[{hz, nj}] == 1; //the amount of express from hz to nj is one car
+	express[{hz, nj}] = 1; //the amount of express from hz to nj is one car
 	for (unsigned i = 0; i < vertexs.size(); ++i)
 	{
 		for (unsigned j = 0; j < vertexs.size(); ++j)
@@ -228,9 +228,9 @@ void Graph::print_express()
 	}
 }
 
-void Graph::route(int c1, int c2)
+bool less_dist(pair<int, float> p1,pair<int, float> p2)
 {
-	
+	return (p1.second < p2.second);
 }
 
 float Graph::cost()
@@ -309,6 +309,117 @@ float Graph::cost()
 		truck_sub2pri[{i, sub2pri[i]}] = sum;
 	}
 
+	for (auto iter:pri2sub)
+	{
+		int pri = iter.first;
+		set<int> subs = iter.second;
+		vector<int> sub_arrive;
+
+		map<float,int> sub_dist;
+		vector<float> dists_of_sub;
+		map<pair<int, int>, float> exp_sub2pri;
+		for (auto iter1 : subs)
+		{
+			sub_dist[dists[{iter1, pri}]] = iter1;
+			dists_of_sub.push_back(dists[{iter1, pri}]);
+		}
+		sort(dists_of_sub.begin(),dists_of_sub.end());
+		
+		map<pair<int, int>, float> time;
+		for (auto iter : subs)
+		{
+			for (unsigned i = 0; i < city.size(); ++i)
+			{
+				if (city[i].prime == true)
+					time.insert({ { iter, i }, 0 });
+			}
+		}
+		
+		for (auto iter : dists_of_sub)
+		{
+			int sub = sub_dist[iter];
+			for (unsigned i = 0; i < city.size(); ++i)
+			{
+				if (city[i].prime == true)
+					exp_sub2pri.insert({ { sub, i }, 0 });
+			}
+			int pri_of_to;
+			for (unsigned i = 0; i < city.size(); ++i)
+			{
+				pri_of_to = sub2pri[i];
+				exp_sub2pri[{sub, pri_of_to}] += express[{sub, i}];    //express from a subprime to a far away primer
+			}
+		}
+
+		map<pair<int,int>, float> box_sub2pri;
+		for (unsigned i = 0; i < city.size(); ++i)
+		{
+			for (unsigned j = 0; j < city.size();++j)
+			if (city[j].prime == true)
+			{
+				box_sub2pri.insert({ {i,j}, 0 });
+			}
+		}
+		struct box{
+			vector<int> subs;
+			float leave;
+			float contain;
+		};
+		map<int,box> boxs;
+
+		float t = 0; //record time
+		for (auto iter : dists_of_sub)
+		{
+			t += (iter / (70 * 1.0));
+			int sub = sub_dist[iter];
+
+			for (unsigned i = 0; i < city.size(); ++i)
+			{
+				if (city[i].prime==true)
+				{
+					boxs[i] += exp_sub2pri[{sub, i}];
+					if (box_sub2pri[{sub, i}] >= 1)			//1???                //if the express to another primer is sum up to 1 truck
+					{
+						time[{sub, i}] += t;							//the truck can go off now
+					}
+					exp_2pri[i] = 0;               //???
+				}
+			}
+		}
+		
+		
+
+	}
+
+	map<pair<int, int>, float> exp_pri2pri; //express from one primer to another
+	vector<int> sum_of_send;
+	for (auto iter : express)
+	{
+		int from = iter.first.first;
+		int to = iter.first.second;
+		int pri_of_from = sub2pri[from];
+		int pri_of_to = sub2pri[to];
+		exp_pri2pri.insert({ {pri_of_from,pri_of_to}, 0 });
+	}
+		
+	for (auto iter : express)
+	{
+		int from = iter.first.first;
+		int to = iter.first.second;
+		float exp = iter.second;
+
+		int pri_of_from = sub2pri[from];
+		int pri_of_to = sub2pri[to];
+		pair<int, int> pri2pri(pri_of_from, pri_of_to);
+		exp_pri2pri[pri2pri] += exp;
+	}
+
+	map<pair<int, int>, int> truck_pri2pri; //truck from one primer to another
+	for (auto iter : exp_pri2pri)
+	{
+		truck_pri2pri.insert({ iter.first, int(iter.second + 1) });
+	}
+
 	map<pair<int, int>, float> time_cost;
 	int cnt = 0;
 	for (auto iter : express)
@@ -349,27 +460,8 @@ float Graph::cost()
 		
 	}
 	cout << cnt << endl;
-	map<pair<int, int>, float> exp_pri2pri; //express from one primer to another
-	vector<int> sum_of_send;
-	for (auto iter : express)
-		exp_pri2pri.insert({ iter.first, 0 });
-	for (auto iter : express)
-	{
-		int from = iter.first.first;
-		int to = iter.first.second;
-		float exp = iter.second;
 
-		int pri_of_from = sub2pri[from];
-		int pri_of_to = sub2pri[to];
-		pair<int, int> pri2pri(pri_of_from, pri_of_to);
-		exp_pri2pri[pri2pri] += exp;
-	}
 
-	map<pair<int, int>, int> truck_pri2pri; //truck from one primer to another
-	for (auto iter : exp_pri2pri)
-	{
-		truck_pri2pri.insert({ iter.first, int(iter.second + 1) });
-	}
 
 	double cost = 0;
 	for (unsigned i = 0; i < sub2pri.size();++i)

@@ -14,7 +14,7 @@ int main()
 		if (graph.cost()>0)
 			cout << i << " : " << graph.cost() << endl;	
 	}*/
-	float i = 250;
+	float i = 400;
 	graph.set_primer(i);
 	cout << i << " : " << graph.cost() << endl;
 	//graph.print_express();
